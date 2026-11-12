@@ -1,0 +1,631 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Autocomplete</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&amp;display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #eef3f1;
+    --surface: #ffffff;
+    --ink: #17313b;
+    --muted: #5b6b73;
+    --line: #c4d3cf;
+    --accent: #0b7a75;
+    --accent-ink: #064b48;
+    --accent-soft: #ddefec;
+    --error: #b42318;
+    --error-bg: #fdecea;
+    --ok: #146c43;
+    --ok-bg: #e6f4ec;
+    color-scheme: light;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 17px;
+    line-height: 1.45;
+  }
+
+  .wrap {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 28px 18px 110px;
+  }
+
+  h1 { margin: 0; font-size: 1.9rem; letter-spacing: -0.01em; }
+  h2 { margin: 0 0 10px; font-size: 1.1rem; }
+  section { margin-top: 34px; }
+  header + main > section:first-child { margin-top: 26px; }
+
+  .shared {
+    margin: 8px 0 0;
+    padding-left: 12px;
+    border-left: 3px solid var(--accent);
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+
+  .hint { margin: -4px 0 10px; color: var(--muted); font-size: 0.95rem; }
+
+  /* search bars */
+  .bar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: var(--surface);
+    border: 2px solid var(--accent);
+    border-radius: 10px;
+    padding: 4px 10px 4px 16px;
+  }
+  .bar:focus-within { box-shadow: 0 0 0 3px var(--accent-soft); }
+  .bar > input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 1.2rem;
+    padding: 10px 0;
+  }
+  .kbox { display: flex; align-items: center; gap: 8px; color: var(--muted); white-space: nowrap; }
+  .kbox input {
+    width: 3.4em;
+    padding: 6px 4px;
+    text-align: center;
+    font: inherit;
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+  }
+
+  /* suggestion lists */
+  .results { margin-top: 12px; }
+  .results-title { margin: 0 0 4px 3px; color: var(--muted); font-size: 0.95rem; }
+  .rows { list-style: none; margin: 0; padding: 0 0 0 0; border-left: 3px solid var(--accent-soft); }
+  .row {
+    display: flex;
+    width: 100%;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 9px 14px;
+    background: transparent;
+    border: 0;
+    border-radius: 0 6px 6px 0;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .row:hover, .row.active { background: var(--accent-soft); }
+  .row.active { box-shadow: inset 3px 0 0 var(--accent); }
+  .row .word strong { color: var(--accent-ink); }
+  .num { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .group-label { padding: 12px 14px 2px; color: var(--muted); font-size: 0.9rem; }
+  .empty { margin: 0; padding: 4px 3px; color: var(--muted); }
+
+  /* add / change + table */
+  .two {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+    gap: 22px;
+    align-items: start;
+    margin-top: 34px;
+  }
+  .two > section { margin-top: 0; }
+  @media (max-width: 720px) { .two { grid-template-columns: minmax(0, 1fr); } }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .field { display: block; margin-bottom: 12px; }
+  .field span { display: block; margin-bottom: 4px; color: var(--muted); font-size: 0.95rem; }
+  .field input {
+    width: 100%;
+    padding: 9px 10px;
+    font: inherit;
+    color: var(--ink);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+  }
+  .primary {
+    min-width: 7.5em;
+    padding: 10px 18px;
+    background: var(--accent);
+    color: #fff;
+    font: inherit;
+    font-weight: 700;
+    border: 0;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .primary:hover { background: var(--accent-ink); }
+
+  .table-scroll { max-height: 330px; overflow: auto; background: var(--surface);
+    border: 1px solid var(--line); border-radius: 8px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { position: sticky; top: 0; padding: 9px 12px; background: var(--surface);
+    color: var(--muted); font-size: 0.9rem; font-weight: 400; text-align: left;
+    border-bottom: 1px solid var(--line); }
+  td { padding: 4px 12px; border-bottom: 1px solid #e4ebe9; }
+  tbody tr[data-word] { cursor: pointer; }
+  tbody tr[data-word]:hover { background: var(--accent-soft); }
+  td.num-cell { font-variant-numeric: tabular-nums; }
+  th:last-child, td:last-child { width: 3.2em; text-align: center; }
+  .linklike {
+    padding: 4px 0;
+    background: none;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .x {
+    width: 32px;
+    height: 32px;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: var(--muted);
+    font: inherit;
+    font-size: 1.2rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .x:hover { color: var(--error); background: var(--error-bg); }
+
+  /* the one status line, always in the same place */
+  #status {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 12px 18px calc(12px + env(safe-area-inset-bottom, 0px));
+    background: var(--surface);
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    text-align: center;
+  }
+  #status:empty { padding: 0; border: 0; background: transparent; }
+  #status.ok { background: var(--ok-bg); color: var(--ok); border-top-color: #b9dcc8; }
+  #status.error { background: var(--error-bg); color: var(--error); border-top-color: #f0b8b2; }
+
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .bar > input:focus-visible { outline: 0; }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Autocomplete</h1>
+    <p class="shared">Shared dictionary: all changes are visible to everyone.</p>
+  </header>
+
+  <main>
+    <section aria-labelledby="h-complete">
+      <h2 id="h-complete">Complete a word</h2>
+      <div class="bar">
+        <input id="top-input" type="text" placeholder="Type here..." aria-label="Start of a word"
+               autocomplete="off" autocapitalize="none" spellcheck="false" autofocus>
+        <label class="kbox"><span>Top</span>
+          <input id="top-k" type="text" inputmode="numeric" value="{{ default_k }}"
+                 aria-label="Number of suggestions" title="Number of suggestions, 1 to {{ max_k }}">
+        </label>
+      </div>
+      <div id="top-results" class="results"></div>
+    </section>
+
+    <div class="two">
+      <section aria-labelledby="h-form">
+        <h2 id="h-form">Add or change a word</h2>
+        <form id="word-form" class="panel" autocomplete="off">
+          <label class="field"><span>Word</span>
+            <input id="word-input" type="text" autocapitalize="none" spellcheck="false">
+          </label>
+          <label class="field"><span>Popularity</span>
+            <input id="pop-input" type="text" inputmode="decimal">
+          </label>
+          <button id="save-btn" class="primary" type="submit">Add</button>
+        </form>
+      </section>
+
+      <section aria-labelledby="h-words">
+        <h2 id="h-words">Stored words</h2>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr><th scope="col">Word</th><th scope="col">Popularity</th>
+                  <th scope="col"><span class="sr-only">Delete</span></th></tr>
+            </thead>
+            <tbody id="words-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <section aria-labelledby="h-next">
+      <h2 id="h-next">Predict the next word</h2>
+      <p class="hint">Pick a suggestion to teach it. Typing alone doesn't.</p>
+      <div class="bar">
+        <input id="next-input" type="text" placeholder="Type here, e.g. I like" aria-label="Words so far"
+               autocomplete="off" autocapitalize="none" spellcheck="false">
+        <label class="kbox"><span>Top</span>
+          <input id="next-k" type="text" inputmode="numeric" value="{{ default_k }}"
+                 aria-label="Number of predictions" title="Number of predictions, 1 to {{ max_k }}">
+        </label>
+      </div>
+      <div id="next-results" class="results"></div>
+    </section>
+  </main>
+</div>
+
+<div id="status" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+  "use strict";
+
+  const $ = (id) => document.getElementById(id);
+  const EMPTY_TEXT = "Type to see suggestions";
+  const EDGE_PUNCT = /^[!-\/:-@\[-`{-~]+|[!-\/:-@\[-`{-~]+$/g;
+
+  const statusEl = $("status");
+  const topInput = $("top-input"), topK = $("top-k"), topResults = $("top-results");
+  const nextInput = $("next-input"), nextK = $("next-k"), nextResults = $("next-results");
+  const form = $("word-form"), wordInput = $("word-input"), popInput = $("pop-input");
+  const saveBtn = $("save-btn"), tableBody = $("words-body");
+
+  // each list tracks its words, the keyboard-highlighted row, and its accept action
+  const topList = { rows: [], active: -1, results: topResults, accept: acceptTop };
+  const nextList = { rows: [], active: -1, results: nextResults, accept: acceptNext };
+
+  let words = new Map();      // word -> popularity, mirrors the server's table
+  let topSeq = 0;             // only the newest request may update a list
+  let nextSeq = 0;
+
+  // ---------- small helpers ----------
+
+  function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  // One status line. `source` lets a query message clear itself once the
+  // problem is fixed, without wiping a message from an add/update/delete.
+  let statusSource = null;
+  function setStatus(message, kind, source) {
+    if (!message) return;
+    statusEl.textContent = message;
+    statusEl.className = kind;
+    statusSource = source;
+  }
+  function clearStatusFrom(source) {
+    if (statusSource === source) {
+      statusEl.textContent = "";
+      statusEl.className = "";
+      statusSource = null;
+    }
+  }
+
+  async function api(path, body) {
+    try {
+      const options = body === undefined ? {} : {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      };
+      const resp = await fetch(path, options);
+      return { status: resp.status, data: await resp.json() };
+    } catch (err) {
+      setStatus("Couldn't reach the server. Try again.", "error", "network");
+      return null;
+    }
+  }
+
+  function wordLabel(word, prefix) {
+    const span = el("span", "word");
+    const p = prefix.toLowerCase();
+    if (p && word.startsWith(p)) {
+      span.append(el("strong", "", word.slice(0, p.length)), word.slice(p.length));
+    } else {
+      span.append(word);
+    }
+    return span;
+  }
+
+  function makeRow(index, word, prefix, numberText) {
+    const li = el("li");
+    const btn = el("button", "row");
+    btn.type = "button";
+    btn.dataset.index = String(index);
+    btn.append(wordLabel(word, prefix), el("span", "num", numberText));
+    li.append(btn);
+    return li;
+  }
+
+  function showEmpty(list) {
+    list.rows = [];
+    list.active = -1;
+    list.results.replaceChildren(el("p", "empty", EMPTY_TEXT));
+  }
+
+  function showNote(list, text) {
+    list.rows = [];
+    list.active = -1;
+    list.results.replaceChildren(el("p", "empty", text));
+  }
+
+  function highlight(list, index) {
+    const buttons = list.results.querySelectorAll("button.row");
+    buttons.forEach((b) => b.classList.remove("active"));
+    list.active = index;
+    if (index >= 0 && buttons[index]) {
+      buttons[index].classList.add("active");
+      buttons[index].scrollIntoView({ block: "nearest" });
+    }
+  }
+
+  // ---------- top box: prefix completion ----------
+
+  function renderTop(prefix, items) {
+    topList.rows = items.map((i) => i.word);
+    topList.active = -1;
+    const ul = el("ul", "rows");
+    items.forEach((item, i) => ul.append(makeRow(i, item.word, prefix, String(item.popularity))));
+    topResults.replaceChildren(el("p", "results-title", `Completing \u201c${prefix}\u201d`), ul);
+  }
+
+  async function runTop() {
+    const seq = ++topSeq;
+    const prefix = topInput.value.trim();
+    if (!prefix) {                         // empty box: show the note, never ask the server
+      showEmpty(topList);
+      clearStatusFrom("top");
+      return;
+    }
+    const params = new URLSearchParams({ prefix, k: topK.value, seq });
+    const res = await api("/api/suggest?" + params);
+    if (!res || seq !== topSeq) return;    // a newer keystroke owns the list now
+    const d = res.data;
+    if (!d.ok) {
+      setStatus(d.message, "error", "top");
+      showNote(topList, "Fix k to see suggestions.");
+      return;
+    }
+    renderTop(prefix, d.suggestions);
+    if (d.message) setStatus(d.message, "info", "top");
+    else clearStatusFrom("top");
+  }
+
+  function acceptTop(word) {               // fills the box only; the top box never learns
+    topInput.value = word;
+    topInput.focus();
+    runTop();
+  }
+
+  // ---------- bottom box: next word ----------
+
+  function nextTitle(d, text) {
+    const tokens = text.trim().split(/\s+/)
+      .map((t) => t.replace(EDGE_PUNCT, ""))
+      .filter(Boolean);
+    const context = tokens.slice(0, tokens.length - (d.partial ? 1 : 0)).slice(-2).join(" ");
+    if (!context) return `Words starting with \u201c${d.partial}\u201d`;
+    return d.partial
+      ? `Next after \u201c${context}\u201d starting with \u201c${d.partial}\u201d`
+      : `Next after \u201c${context}\u201d`;
+  }
+
+  function renderNext(d, text) {
+    const items = d.suggestions;
+    nextList.rows = items.map((i) => i.word);
+    nextList.active = -1;
+    const ul = el("ul", "rows");
+    let index = 0;
+    let popularShown = false;
+    for (const item of items) {
+      if (item.source === "popular" && !popularShown) {
+        popularShown = true;
+        ul.append(el("li", "group-label", "Popular words"));
+      }
+      const label = item.source === "follower"
+        ? `${item.number} time${item.number === 1 ? "" : "s"}`
+        : String(item.number);
+      ul.append(makeRow(index++, item.word, d.partial, label));
+    }
+    nextResults.replaceChildren(el("p", "results-title", nextTitle(d, text)), ul);
+  }
+
+  async function runNext() {
+    const seq = ++nextSeq;
+    const text = nextInput.value;
+    if (!text.trim()) {
+      showEmpty(nextList);
+      clearStatusFrom("next");
+      return;
+    }
+    const params = new URLSearchParams({ text, k: nextK.value, seq });
+    const res = await api("/api/next?" + params);
+    if (!res || seq !== nextSeq) return;
+    const d = res.data;
+    if (!d.ok) {
+      setStatus(d.message, "error", "next");
+      showNote(nextList, "Fix k to see suggestions.");
+      return;
+    }
+    if (d.suggestions.length === 0 && !d.context.length && !d.partial) {
+      showEmpty(nextList);                 // only punctuation typed
+    } else {
+      renderNext(d, text);
+    }
+    if (d.message && d.message !== EMPTY_TEXT) setStatus(d.message, "info", "next");
+    else clearStatusFrom("next");
+  }
+
+  // The accepted word replaces the unfinished part and a space is added,
+  // so the list moves on to the next word.
+  function replaceUnfinished(text, word) {
+    if (/[\s.,;:!?]$/.test(text)) {        // last word was already finished
+      const gap = /\s$/.test(text) ? "" : " ";
+      return text + gap + word + " ";
+    }
+    const start = text.search(/\S+$/);
+    return text.slice(0, start) + word + " ";
+  }
+
+  async function acceptNext(word) {
+    const text = nextInput.value;
+    const res = await api("/api/accept", { text, word });
+    if (!res) return;
+    const d = res.data;
+    if (!d.ok) {                           // e.g. the word was deleted meanwhile
+      setStatus(d.message, "error", "write");
+      runNext();
+      return;
+    }
+    setStatus(d.message, "ok", "write");
+    nextInput.value = replaceUnfinished(text, word);
+    nextInput.focus();
+    runNext();
+  }
+
+  // ---------- keyboard and clicks for both lists ----------
+
+  function wireList(list, input) {
+    input.addEventListener("keydown", (e) => {
+      const n = list.rows.length;
+      if (e.key === "ArrowDown" && n) {
+        e.preventDefault();
+        highlight(list, (list.active + 1) % n);
+      } else if (e.key === "ArrowUp" && n) {
+        e.preventDefault();
+        highlight(list, list.active <= 0 ? n - 1 : list.active - 1);
+      } else if ((e.key === "Enter" || (e.key === "Tab" && !e.shiftKey)) && list.active >= 0) {
+        e.preventDefault();
+        list.accept(list.rows[list.active]);
+      } else if (e.key === "Escape") {
+        highlight(list, -1);
+      }
+    });
+    list.results.addEventListener("click", (e) => {
+      const btn = e.target.closest("button.row");
+      if (btn) list.accept(list.rows[Number(btn.dataset.index)]);
+    });
+  }
+
+  wireList(topList, topInput);
+  wireList(nextList, nextInput);
+  topInput.addEventListener("input", runTop);
+  topK.addEventListener("input", runTop);
+  nextInput.addEventListener("input", runNext);
+  nextK.addEventListener("input", runNext);
+
+  // ---------- add / change form and stored words table ----------
+
+  function updateSaveLabel() {
+    const word = wordInput.value.trim().toLowerCase();
+    saveBtn.textContent = words.has(word) ? "Update" : "Add";
+  }
+
+  function renderTable(rows) {
+    words = new Map(rows.map((r) => [r.word, r.popularity]));
+    tableBody.replaceChildren();
+    if (rows.length === 0) {
+      const tr = el("tr");
+      const td = el("td", "", "No words stored.");
+      td.colSpan = 3;
+      tr.append(td);
+      tableBody.append(tr);
+    }
+    for (const r of rows) {
+      const tr = el("tr");
+      tr.dataset.word = r.word;
+      const wordCell = el("td");
+      wordCell.append(el("button", "linklike", r.word));
+      wordCell.firstChild.type = "button";
+      const popCell = el("td", "num-cell", String(r.popularity));
+      const delCell = el("td");
+      const del = el("button", "x", "\u00d7");
+      del.type = "button";
+      del.setAttribute("aria-label", `Delete ${r.word}`);
+      delCell.append(del);
+      tr.append(wordCell, popCell, delCell);
+      tableBody.append(tr);
+    }
+    updateSaveLabel();
+  }
+
+  function refreshLists() {
+    runTop();
+    runNext();
+  }
+
+  wordInput.addEventListener("input", updateSaveLabel);
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const res = await api("/api/word", { word: wordInput.value, popularity: popInput.value });
+    if (!res) return;
+    const d = res.data;
+    if (d.words) renderTable(d.words);
+    setStatus(d.message, d.ok ? "ok" : "error", "write");
+    if (d.ok) refreshLists();
+  });
+
+  async function deleteWord(word) {
+    const res = await api("/api/word/delete", { word });
+    if (!res) return;
+    const d = res.data;
+    if (d.words) renderTable(d.words);
+    setStatus(d.message, d.ok ? "ok" : "error", "write");
+    refreshLists();
+  }
+
+  tableBody.addEventListener("click", (e) => {
+    const tr = e.target.closest("tr[data-word]");
+    if (!tr) return;
+    const word = tr.dataset.word;
+    if (e.target.closest("button.x")) {
+      deleteWord(word);
+    } else {                               // row click fills the form
+      wordInput.value = word;
+      popInput.value = String(words.get(word));
+      updateSaveLabel();
+      popInput.focus();
+    }
+  });
+
+  // ---------- start ----------
+
+  showEmpty(topList);
+  showEmpty(nextList);
+  api("/api/words").then((res) => {
+    if (res && res.data.words) renderTable(res.data.words);
+  });
+})();
+</script>
+</body>
+</html>
